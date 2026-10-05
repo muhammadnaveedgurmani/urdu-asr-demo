@@ -21,7 +21,8 @@ export default function Home() {
     setError('');
     try {
       setProgress('Model download ho raha hai...');
-      const { pipeline } = await import('@huggingface/transformers');
+      // @ts-ignore - loaded via CDN
+      const { pipeline } = window.transformers;
       transcriber.current = await pipeline(
         'automatic-speech-recognition',
         'onnx-community/whisper-small',
