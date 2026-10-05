@@ -5,7 +5,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <Script
-          src="https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.min.js"
+          src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js"
           strategy="beforeInteractive"
         />
       </head>

@@ -21,11 +21,11 @@ export default function Home() {
     setError('');
     try {
       setProgress('Model download ho raha hai...');
-      // @ts-ignore - loaded via CDN
+      // @ts-ignore - loaded via CDN (@xenova/transformers v2)
       const { pipeline } = window.transformers;
       transcriber.current = await pipeline(
         'automatic-speech-recognition',
-        'onnx-community/whisper-small',
+        'Xenova/whisper-small',
         {
           // @ts-ignore
           progress_callback: (p: any) => {
