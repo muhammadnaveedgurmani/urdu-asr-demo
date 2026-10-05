@@ -1,15 +1,49 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 export default function Home() {
   const [transcript, setTranscript] = useState('');
   const [loading, setLoading] = useState(false);
+  const [modelLoading, setModelLoading] = useState(false);
+  const [modelReady, setModelReady] = useState(false);
   const [error, setError] = useState('');
   const [recording, setRecording] = useState(false);
   const [audioURL, setAudioURL] = useState('');
+  const [progress, setProgress] = useState('');
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
+  const transcriber = useRef<any>(null);
+
+  const loadModel = async () => {
+    if (transcriber.current || modelLoading) return;
+    setModelLoading(true);
+    setError('');
+    try {
+      setProgress('Model download ho raha hai...');
+      const { pipeline } = await import('@huggingface/transformers');
+      transcriber.current = await pipeline(
+        'automatic-speech-recognition',
+        'onnx-community/whisper-small',
+        {
+          // @ts-ignore
+          progress_callback: (p: any) => {
+            if (p.status === 'downloading') setProgress('Model download: ' + Math.round(p.progress || 0) + '%');
+          }
+        }
+      );
+      setModelReady(true);
+      setProgress('');
+    } catch (e) {
+      console.error(e);
+      setError('Model load nahi hua. Internet check karein.');
+    }
+    setModelLoading(false);
+  };
+
+  useEffect(() => {
+    loadModel();
+  }, []);
 
   const startRecording = async () => {
     try {
@@ -46,18 +80,23 @@ export default function Home() {
   };
 
   const transcribe = async (blob: Blob) => {
+    if (!transcriber.current) {
+      setError('Model abhi load ho raha hai. Thoda wait karein.');
+      return;
+    }
     setLoading(true);
     setError('');
     setTranscript('');
     try {
-      const fd = new FormData();
-      fd.append('audio', blob, 'audio.wav');
-      const res = await fetch('/api/transcribe', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (data.error) setError(data.error);
-      else setTranscript(data.transcript);
-    } catch {
-      setError('Transcription nakam hui');
+      const audioUrl = URL.createObjectURL(blob);
+      const result = await transcriber.current(audioUrl, {
+        language: 'urdu',
+        task: 'transcribe',
+      });
+      setTranscript(result.text || '');
+    } catch (e) {
+      console.error(e);
+      setError('Transcription nakam hui. Dobara try karein.');
     }
     setLoading(false);
   };
@@ -70,8 +109,18 @@ export default function Home() {
           <h1 style={styles.title}>Urdu Speech to Text</h1>
           <p style={styles.subtitle}>
             Whisper-small model jo Urdu bolne ko samajhta hai.<br />
-            Neeche record karein ya audio file upload karein.
+            100% browser me chalta hai. Koi server nahi.
           </p>
+          {!modelReady && (
+            <div style={styles.modelStatus}>
+              {modelLoading ? (
+                <><div style={styles.spinnerSmall}></div> {progress || 'Model load ho raha hai...'}</>
+              ) : (
+                <button onClick={loadModel} style={styles.loadBtn}>Model Load Karein</button>
+              )}
+            </div>
+          )}
+          {modelReady && <div style={styles.readyBadge}>✅ Model tayyar hai</div>}
           <div style={styles.stats}>
             <div style={styles.stat}>
               <div style={styles.statNum}>29.4%</div>
@@ -91,7 +140,7 @@ export default function Home() {
         <div style={styles.card}>
           <div style={styles.btnRow}>
             {!recording ? (
-              <button onClick={startRecording} style={{...styles.btn, ...styles.recordBtn}}>
+              <button onClick={startRecording} disabled={!modelReady} style={{...styles.btn, ...styles.recordBtn, opacity: modelReady ? 1 : 0.5}}>
                 <span style={{fontSize: '1.3rem'}}>🎤</span> Record Karein
               </button>
             ) : (
@@ -99,9 +148,9 @@ export default function Home() {
                 <span style={styles.pulse}>⏺</span> Recording... Rokain
               </button>
             )}
-            <label style={{...styles.btn, ...styles.uploadBtn}}>
+            <label style={{...styles.btn, ...styles.uploadBtn, opacity: modelReady ? 1 : 0.5}}>
               📁 Audio Upload Karein
-              <input type="file" accept="audio/*" onChange={handleFile} style={{ display: 'none' }} />
+              <input type="file" accept="audio/*" onChange={handleFile} style={{ display: 'none' }} disabled={!modelReady} />
             </label>
           </div>
 
@@ -136,8 +185,9 @@ export default function Home() {
           <h3 style={styles.infoTitle}>Model ke baare mein</h3>
           <p style={styles.infoText}>
             Ye OpenAI ke Whisper-small model ka fine-tuned version hai,
-            jo 4,000 Urdu audio samples par train hua hai.
-            Google Colab ke T4 GPU par 3 epochs tak train kiya gaya.
+            jo 4,000 Urdu audio samples par train hua hai (WER 29.43%).
+            Demo browser me hi chalta hai taake foran kaam kare.
+            Asal fine-tuned model yahan se download karein:
           </p>
           <div style={styles.links}>
             <a href="https://huggingface.co/Naveef/whisper-small-ur" target="_blank" rel="noopener" style={styles.link}>
@@ -182,6 +232,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   title: { fontSize: '2.5rem', margin: '0 0 0.5rem', fontWeight: 800 },
   subtitle: { fontSize: '1.05rem', opacity: 0.85, lineHeight: 1.6 },
+  modelStatus: { marginTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' },
+  loadBtn: { background: '#22c55e', color: 'white', border: 'none', padding: '0.6rem 1.5rem', borderRadius: 8, cursor: 'pointer', fontWeight: 600 },
+  readyBadge: { marginTop: '1rem', color: '#86efac', fontWeight: 600 },
   stats: { display: 'flex', justifyContent: 'center', gap: '2rem', marginTop: '1.5rem' },
   stat: { textAlign: 'center' },
   statNum: { fontSize: '1.8rem', fontWeight: 800, color: '#93c5fd' },
@@ -195,7 +248,6 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1, minWidth: 200, padding: '1rem', border: 'none', borderRadius: 12,
     fontSize: '1.05rem', fontWeight: 600, cursor: 'pointer', color: 'white',
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-    transition: 'transform 0.1s',
   },
   recordBtn: { background: 'linear-gradient(135deg, #dc2626, #991b1b)' },
   stopBtn: { background: 'linear-gradient(135deg, #7f1d1d, #450a0a)' },
@@ -206,6 +258,11 @@ const styles: Record<string, React.CSSProperties> = {
     width: 40, height: 40, margin: '0 auto 1rem',
     border: '4px solid #e5e7eb', borderTop: '4px solid #0C56A5',
     borderRadius: '50%', animation: 'spin 1s linear infinite',
+  },
+  spinnerSmall: {
+    width: 20, height: 20,
+    border: '3px solid rgba(255,255,255,0.3)', borderTop: '3px solid white',
+    borderRadius: '50%', animation: 'spin 1s linear infinite', display: 'inline-block',
   },
   error: {
     background: '#fef2f2', color: '#dc2626', padding: '1rem',
