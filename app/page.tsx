@@ -7,6 +7,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [recording, setRecording] = useState(false);
+  const [audioURL, setAudioURL] = useState('');
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
 
@@ -17,15 +18,17 @@ export default function Home() {
       chunks.current = [];
       mediaRecorder.current.ondataavailable = (e) => chunks.current.push(e.data);
       mediaRecorder.current.onstop = () => {
-        const blob = new Blob(chunks.current, { type: 'audio/wav' });
+        const blob = new Blob(chunks.current, { type: 'audio/webm' });
+        setAudioURL(URL.createObjectURL(blob));
         transcribe(blob);
         stream.getTracks().forEach(t => t.stop());
       };
       mediaRecorder.current.start();
       setRecording(true);
       setError('');
+      setTranscript('');
     } catch {
-      setError('Microphone access denied');
+      setError('Microphone ki ijazat nahi mili');
     }
   };
 
@@ -36,7 +39,10 @@ export default function Home() {
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) transcribe(file);
+    if (file) {
+      setAudioURL(URL.createObjectURL(file));
+      transcribe(file);
+    }
   };
 
   const transcribe = async (blob: Blob) => {
@@ -51,62 +57,183 @@ export default function Home() {
       if (data.error) setError(data.error);
       else setTranscript(data.transcript);
     } catch {
-      setError('Transcription failed');
+      setError('Transcription nakam hui');
     }
     setLoading(false);
   };
 
   return (
-    <main style={{ maxWidth: 700, margin: '0 auto', padding: '2rem', fontFamily: 'system-ui' }}>
-      <h1>🎙️ Urdu ASR Demo</h1>
-      <p>Whisper-small fine-tuned on Urdu speech. WER 29.43%.</p>
-      <p>
-        <a href="https://huggingface.co/Naveef/whisper-small-ur" target="_blank" rel="noopener">
-          Model on Hugging Face
-        </a>
-        {' | '}
-        <a href="https://github.com/muhammadnaveedgurmani/urdu-asr" target="_blank" rel="noopener">
-          GitHub
-        </a>
-      </p>
-
-      <div style={{ margin: '2rem 0', display: 'flex', gap: '1rem' }}>
-        {!recording ? (
-          <button onClick={startRecording} style={btnStyle}>🔴 Record</button>
-        ) : (
-          <button onClick={stopRecording} style={{...btnStyle, background: '#dc2626'}}>⏹ Stop</button>
-        )}
-        <label style={{...btnStyle, cursor: 'pointer'}}>
-          📁 Upload Audio
-          <input type="file" accept="audio/*" onChange={handleFile} style={{ display: 'none' }} />
-        </label>
-      </div>
-
-      {loading && <p>Transcribing...</p>}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {transcript && (
-        <div style={{ background: '#f3f4f6', padding: '1rem', borderRadius: 8, marginTop: '1rem' }}>
-          <h3>Transcript:</h3>
-          <p style={{ fontSize: '1.2rem', direction: 'rtl' }}>{transcript}</p>
+    <div style={styles.page}>
+      <div style={styles.container}>
+        <div style={styles.header}>
+          <div style={styles.badge}>🎙️ AI Powered</div>
+          <h1 style={styles.title}>Urdu Speech to Text</h1>
+          <p style={styles.subtitle}>
+            Whisper-small model jo Urdu bolne ko samajhta hai.<br />
+            Neeche record karein ya audio file upload karein.
+          </p>
+          <div style={styles.stats}>
+            <div style={styles.stat}>
+              <div style={styles.statNum}>29.4%</div>
+              <div style={styles.statLabel}>Word Error Rate</div>
+            </div>
+            <div style={styles.stat}>
+              <div style={styles.statNum}>4,000</div>
+              <div style={styles.statLabel}>Training Samples</div>
+            </div>
+            <div style={styles.stat}>
+              <div style={styles.statNum}>244M</div>
+              <div style={styles.statLabel}>Parameters</div>
+            </div>
+          </div>
         </div>
-      )}
 
-      <div style={{ marginTop: '3rem', fontSize: '0.9rem', color: '#666' }}>
-        <h3>About</h3>
-        <p>
-          Fine-tuned OpenAI Whisper-small (244M params) on 4,000 Urdu utterances.
-          Trained on Google Colab T4 GPU. Model: Naveef/whisper-small-ur.
-        </p>
+        <div style={styles.card}>
+          <div style={styles.btnRow}>
+            {!recording ? (
+              <button onClick={startRecording} style={{...styles.btn, ...styles.recordBtn}}>
+                <span style={{fontSize: '1.3rem'}}>🎤</span> Record Karein
+              </button>
+            ) : (
+              <button onClick={stopRecording} style={{...styles.btn, ...styles.stopBtn}}>
+                <span style={styles.pulse}>⏺</span> Recording... Rokain
+              </button>
+            )}
+            <label style={{...styles.btn, ...styles.uploadBtn}}>
+              📁 Audio Upload Karein
+              <input type="file" accept="audio/*" onChange={handleFile} style={{ display: 'none' }} />
+            </label>
+          </div>
+
+          {audioURL && (
+            <audio controls src={audioURL} style={{ width: '100%', marginTop: '1rem' }} />
+          )}
+
+          {loading && (
+            <div style={styles.loading}>
+              <div style={styles.spinner}></div>
+              <p>AI sun raha hai...</p>
+            </div>
+          )}
+
+          {error && <div style={styles.error}>⚠️ {error}</div>}
+
+          {transcript && (
+            <div style={styles.result}>
+              <div style={styles.resultLabel}>📝 Transcript</div>
+              <p style={styles.transcriptText}>{transcript}</p>
+              <button
+                onClick={() => navigator.clipboard.writeText(transcript)}
+                style={styles.copyBtn}
+              >
+                📋 Copy Karein
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div style={styles.info}>
+          <h3 style={styles.infoTitle}>Model ke baare mein</h3>
+          <p style={styles.infoText}>
+            Ye OpenAI ke Whisper-small model ka fine-tuned version hai,
+            jo 4,000 Urdu audio samples par train hua hai.
+            Google Colab ke T4 GPU par 3 epochs tak train kiya gaya.
+          </p>
+          <div style={styles.links}>
+            <a href="https://huggingface.co/Naveef/whisper-small-ur" target="_blank" rel="noopener" style={styles.link}>
+              🤗 Hugging Face Model
+            </a>
+            <a href="https://github.com/muhammadnaveedgurmani/urdu-asr" target="_blank" rel="noopener" style={styles.link}>
+              💻 GitHub Code
+            </a>
+          </div>
+        </div>
+
+        <footer style={styles.footer}>
+          Built by Muhammad Naveed • Whisper-small fine-tuned for Urdu
+        </footer>
       </div>
-    </main>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
   );
 }
 
-const btnStyle: React.CSSProperties = {
-  padding: '0.75rem 1.5rem',
-  background: '#0C56A5',
-  color: 'white',
-  border: 'none',
-  borderRadius: 8,
-  fontSize: '1rem',
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: '100vh',
+    background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0C56A5 100%)',
+    padding: '2rem 1rem',
+    fontFamily: "'Segoe UI', system-ui, sans-serif",
+  },
+  container: { maxWidth: 680, margin: '0 auto' },
+  header: { textAlign: 'center', marginBottom: '2rem', color: 'white' },
+  badge: {
+    display: 'inline-block', background: 'rgba(255,255,255,0.15)',
+    padding: '0.4rem 1rem', borderRadius: 20, fontSize: '0.85rem', marginBottom: '1rem',
+  },
+  title: { fontSize: '2.5rem', margin: '0 0 0.5rem', fontWeight: 800 },
+  subtitle: { fontSize: '1.05rem', opacity: 0.85, lineHeight: 1.6 },
+  stats: { display: 'flex', justifyContent: 'center', gap: '2rem', marginTop: '1.5rem' },
+  stat: { textAlign: 'center' },
+  statNum: { fontSize: '1.8rem', fontWeight: 800, color: '#93c5fd' },
+  statLabel: { fontSize: '0.8rem', opacity: 0.7 },
+  card: {
+    background: 'white', borderRadius: 16, padding: '2rem',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+  },
+  btnRow: { display: 'flex', gap: '1rem', flexWrap: 'wrap' },
+  btn: {
+    flex: 1, minWidth: 200, padding: '1rem', border: 'none', borderRadius: 12,
+    fontSize: '1.05rem', fontWeight: 600, cursor: 'pointer', color: 'white',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+    transition: 'transform 0.1s',
+  },
+  recordBtn: { background: 'linear-gradient(135deg, #dc2626, #991b1b)' },
+  stopBtn: { background: 'linear-gradient(135deg, #7f1d1d, #450a0a)' },
+  uploadBtn: { background: 'linear-gradient(135deg, #0C56A5, #1e3a8a)', cursor: 'pointer' },
+  pulse: { animation: 'pulse 1s infinite' },
+  loading: { textAlign: 'center', padding: '2rem', color: '#666' },
+  spinner: {
+    width: 40, height: 40, margin: '0 auto 1rem',
+    border: '4px solid #e5e7eb', borderTop: '4px solid #0C56A5',
+    borderRadius: '50%', animation: 'spin 1s linear infinite',
+  },
+  error: {
+    background: '#fef2f2', color: '#dc2626', padding: '1rem',
+    borderRadius: 8, marginTop: '1rem',
+  },
+  result: {
+    background: '#f0fdf4', border: '2px solid #86efac', borderRadius: 12,
+    padding: '1.5rem', marginTop: '1.5rem',
+  },
+  resultLabel: { fontWeight: 700, marginBottom: '0.5rem', color: '#166534' },
+  transcriptText: {
+    fontSize: '1.3rem', direction: 'rtl', textAlign: 'right',
+    background: 'white', padding: '1rem', borderRadius: 8, lineHeight: 1.8,
+  },
+  copyBtn: {
+    marginTop: '1rem', padding: '0.5rem 1rem', background: '#166534',
+    color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer',
+  },
+  info: {
+    background: 'rgba(255,255,255,0.1)', borderRadius: 16, padding: '1.5rem',
+    marginTop: '1.5rem', color: 'white',
+  },
+  infoTitle: { margin: '0 0 0.5rem' },
+  infoText: { opacity: 0.85, lineHeight: 1.6, fontSize: '0.95rem' },
+  links: { display: 'flex', gap: '1rem', marginTop: '1rem', flexWrap: 'wrap' },
+  link: {
+    color: '#93c5fd', textDecoration: 'none', fontWeight: 600,
+    background: 'rgba(255,255,255,0.1)', padding: '0.5rem 1rem', borderRadius: 8,
+  },
+  footer: { textAlign: 'center', color: 'rgba(255,255,255,0.5)', marginTop: '2rem', fontSize: '0.85rem' },
 };
